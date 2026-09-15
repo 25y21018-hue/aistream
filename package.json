@@ -1,0 +1,13 @@
+{
+  "name": "aistream",
+  "version": "1.0.0",
+  "description": "AI Stream Training",
+  "type": "module",
+  "main": "index.html",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "groq-sdk": "^0.37.0"
+  }
+}

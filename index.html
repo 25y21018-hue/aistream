@@ -1,0 +1,376 @@
+```html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stream Training</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #111318;
+            color: #ffffff;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 25px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .status {
+            color: #6ee7b7;
+            font-size: 14px;
+        }
+
+        .main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #1b1e26;
+            border: 1px solid #2b303b;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .chat-box {
+            height: 420px;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .chat {
+            margin-bottom: 14px;
+        }
+
+        .name {
+            font-weight: bold;
+            color: #8ab4ff;
+            margin-bottom: 4px;
+        }
+
+        .message {
+            background: #252936;
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: inline-block;
+            max-width: 90%;
+        }
+
+        .my-answer {
+            margin-top: 15px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            resize: none;
+            border: 1px solid #343946;
+            border-radius: 10px;
+            background: #111318;
+            color: white;
+            padding: 12px;
+            font-size: 15px;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: #6d8cff;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 10px;
+            padding: 13px;
+            border: none;
+            border-radius: 10px;
+            background: #5865f2;
+            color: white;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #4752c4;
+        }
+
+        .feedback {
+            min-height: 420px;
+        }
+
+        .score-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .score {
+            background: #252936;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .score-name {
+            color: #aeb5c5;
+            font-size: 13px;
+            margin-bottom: 7px;
+        }
+
+        .score-value {
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        .feedback-text {
+            background: #252936;
+            border-radius: 10px;
+            padding: 15px;
+            line-height: 1.6;
+            color: #d9deea;
+        }
+
+        .start-button {
+            background: #10b981;
+            margin-bottom: 20px;
+        }
+
+        .start-button:hover {
+            background: #059669;
+        }
+
+        @media (max-width: 800px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+
+            .chat-box {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <header>
+        <h1>🎙️ AI Stream Training</h1>
+        <div class="status">● 연습 준비 완료</div>
+    </header>
+
+    <button class="start-button" onclick="startTraining()">
+        🎬 방송 연습 시작
+    </button>
+
+    <div class="main">
+
+        <!-- 왼쪽 : AI 시청자 -->
+        <div class="panel">
+
+            <div class="panel-title">
+                💬 AI 시청자
+            </div>
+
+            <div class="chat-box" id="chatBox">
+
+                <div class="chat">
+                    <div class="name">시청자_김민수</div>
+                    <div class="message">
+                        방송 처음 보는데 오늘 뭐 하실 거예요?
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="my-answer">
+
+                <textarea
+                    id="answerInput"
+                    placeholder="시청자에게 답변해보세요..."
+                ></textarea>
+
+                <button onclick="submitAnswer()">
+                    💬 답변하기
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- 오른쪽 : AI 피드백 -->
+        <div class="panel feedback">
+
+            <div class="panel-title">
+                📊 AI 방송 피드백
+            </div>
+
+            <div class="score-container">
+
+                <div class="score">
+                    <div class="score-name">
+                        소통 능력
+                    </div>
+                    <div class="score-value" id="communicationScore">
+                        -
+                    </div>
+                </div>
+
+                <div class="score">
+                    <div class="score-name">
+                        자연스러움
+                    </div>
+                    <div class="score-value" id="naturalScore">
+                        -
+                    </div>
+                </div>
+
+                <div class="score">
+                    <div class="score-name">
+                        재미
+                    </div>
+                    <div class="score-value" id="funScore">
+                        -
+                    </div>
+                </div>
+
+                <div class="score">
+                    <div class="score-name">
+                        대화 지속력
+                    </div>
+                    <div class="score-value" id="conversationScore">
+                        -
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="feedback-text" id="feedbackText">
+                방송 연습을 시작하면
+                AI가 여러분의 답변을 분석합니다.
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+    let trainingStarted = false;
+
+    function startTraining() {
+
+        trainingStarted = true;
+
+        const chatBox = document.getElementById("chatBox");
+
+        chatBox.innerHTML = `
+            <div class="chat">
+                <div class="name">시청자_김민수</div>
+                <div class="message">
+                    안녕하세요! 오늘 방송 처음 보는데 무슨 방송이에요?
+                </div>
+            </div>
+        `;
+
+        document.querySelector(".status").textContent =
+            "● 방송 연습 중";
+
+        document.getElementById("feedbackText").textContent =
+            "시청자의 질문에 답변해보세요. AI가 답변을 분석합니다.";
+
+        document.getElementById("answerInput").focus();
+    }
+
+
+    function submitAnswer() {
+
+        if (!trainingStarted) {
+            alert("먼저 '방송 연습 시작'을 눌러주세요.");
+            return;
+        }
+
+        const input = document.getElementById("answerInput");
+        const answer = input.value.trim();
+
+        if (!answer) {
+            alert("답변을 입력해주세요.");
+            return;
+        }
+
+        const chatBox = document.getElementById("chatBox");
+
+        const myChat = document.createElement("div");
+
+        myChat.className = "chat";
+
+        myChat.innerHTML = `
+            <div class="name">나</div>
+            <div class="message">
+                ${escapeHTML(answer)}
+            </div>
+        `;
+
+        chatBox.appendChild(myChat);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        input.value = "";
+
+        /*
+         * 다음 단계에서 이 부분에
+         * Groq API 요청을 연결할 예정입니다.
+         */
+
+        document.getElementById("feedbackText").textContent =
+            "⏳ AI가 답변을 분석하는 기능은 다음 단계에서 연결합니다.";
+    }
+
+
+    function escapeHTML(text) {
+
+        const div = document.createElement("div");
+        div.textContent = text;
+
+        return div.innerHTML;
+    }
+
+</script>
+
+</body>
+</html>
+```
