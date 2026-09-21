@@ -220,10 +220,6 @@
             .chat-box {
                 height: 300px;
             }
-
-            .analysis-buttons {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
@@ -243,7 +239,10 @@
 
     <div class="main">
 
-        <!-- 왼쪽 : AI 시청자 -->
+        <!-- ==========================================
+             왼쪽 : AI 시청자
+             ========================================== -->
+
         <div class="panel">
 
             <div class="panel-title">
@@ -253,9 +252,7 @@
             <div class="chat-box" id="chatBox">
 
                 <div class="chat">
-                    <div class="name">
-                        시청자_김민수
-                    </div>
+                    <div class="name">시청자_김민수</div>
 
                     <div class="message">
                         방송 처음 보는데 오늘 뭐 하실 거예요?
@@ -283,7 +280,10 @@
         </div>
 
 
-        <!-- 오른쪽 : AI 피드백 -->
+        <!-- ==========================================
+             오른쪽 : AI 피드백
+             ========================================== -->
+
         <div class="panel feedback">
 
             <div class="panel-title">
@@ -305,7 +305,6 @@
                     </div>
                 </div>
 
-
                 <div class="score">
                     <div class="score-name">
                         자연스러움
@@ -319,7 +318,6 @@
                     </div>
                 </div>
 
-
                 <div class="score">
                     <div class="score-name">
                         재미
@@ -332,7 +330,6 @@
                         -
                     </div>
                 </div>
-
 
                 <div class="score">
                     <div class="score-name">
@@ -349,7 +346,6 @@
 
             </div>
 
-
             <div
                 class="feedback-text"
                 id="feedbackText"
@@ -358,16 +354,16 @@
                 AI가 여러분의 답변을 분석합니다.
             </div>
 
+            <!-- 다음 분석 구간 선택 -->
 
-            <!-- 5 / 10 / 20 선택 버튼 -->
             <div
                 class="analysis-controls"
                 id="analysisControls"
-                style="display: none;"
+                style="display:none;"
             >
 
                 <div class="analysis-title">
-                    📌 다음 분석까지 진행할 채팅 수를 선택하세요.
+                    다음에 몇 개의 채팅을 연습할까요?
                 </div>
 
                 <div class="analysis-buttons">
@@ -412,29 +408,83 @@
 
     let trainingStarted = false;
 
-    // 현재 AI 시청자 채팅
     let currentChat = "";
 
-    // 지금까지 진행한 전체 횟수
+    // 전체 진행한 채팅 수
     let totalRounds = 0;
 
-    // 현재 분석 구간에서 몇 번 진행했는지
+    // 현재 분석 구간에서 진행한 채팅 수
     let currentBatchRounds = 0;
 
-    // 현재 선택된 다음 분석 횟수
+    // 현재 분석 구간 크기
     let currentBatchTarget = 5;
 
-    // 현재 분석 구간의 시작 번호
+    // 현재 분석 구간 시작 번호
     let currentBatchStart = 1;
 
     // 현재 분석 구간의 대화
     let currentBatchConversations = [];
 
-    // 직전 분석 결과
+    // 가장 최근 분석 결과
     let previousAnalysis = null;
 
-    // AI 요청 중인지 확인
+    // 최근 대화 기억
+    let recentConversations = [];
+
+    // 현재 시청자 성향
+    let currentViewerProfile = null;
+
+    // AI 요청 중인지
     let aiBusy = false;
+
+
+    // ==========================================
+    // 시청자 성향
+    // ==========================================
+
+    const viewerProfiles = [
+
+        {
+            type: "처음 온 시청자",
+            style: "방송을 처음 보는 사람처럼 가볍게 질문하고 반응한다."
+        },
+
+        {
+            type: "오래 본 시청자",
+            style: "방송인의 이전 행동이나 말을 기억하고 자연스럽게 언급한다."
+        },
+
+        {
+            type: "장난치는 시청자",
+            style: "가끔 가볍게 놀리거나 농담을 섞는다."
+        },
+
+        {
+            type: "질문이 많은 시청자",
+            style: "방송 내용에 관심을 가지고 자연스럽게 질문한다."
+        },
+
+        {
+            type: "조용한 시청자",
+            style: "평소에는 조용하지만 가끔 짧게 반응한다."
+        },
+
+        {
+            type: "게임 관심 시청자",
+            style: "게임 플레이나 실력, 전략 등에 관심을 보인다."
+        },
+
+        {
+            type: "리액션이 큰 시청자",
+            style: "재미있는 상황에서 짧고 강하게 반응한다."
+        },
+
+        {
+            type: "그냥 지나가다 들어온 시청자",
+            style: "방송 내용에 가볍게 반응하다가 다른 주제로 넘어가기도 한다."
+        }
+
+    ];
 
 
     // ==========================================
@@ -443,17 +493,18 @@
 
     async function callAI(data) {
 
-        const response = await fetch("/api/chat", {
+        const response = await fetch(
+            "/api/chat",
+            {
+                method: "POST",
 
-            method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
 
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify(data)
-
-        });
+                body: JSON.stringify(data)
+            }
+        );
 
 
         const result = await response.json();
@@ -470,6 +521,7 @@
 
 
         return result;
+
     }
 
 
@@ -478,11 +530,6 @@
     // ==========================================
 
     async function startTraining() {
-
-        if (aiBusy) {
-            return;
-        }
-
 
         trainingStarted = true;
 
@@ -498,6 +545,10 @@
 
         previousAnalysis = null;
 
+        recentConversations = [];
+
+        currentViewerProfile = null;
+
 
         const chatBox =
             document.getElementById("chatBox");
@@ -508,42 +559,16 @@
         const answerInput =
             document.getElementById("answerInput");
 
-        const answerButton =
-            document.getElementById("answerButton");
-
         const startButton =
             document.querySelector(".start-button");
 
-        const controls =
+        const analysisControls =
             document.getElementById("analysisControls");
 
 
         startButton.disabled = true;
 
-        answerButton.disabled = true;
-
-        controls.style.display = "none";
-
-
-        // 점수 초기화
-        document.getElementById(
-            "communicationScore"
-        ).textContent = "-";
-
-        document.getElementById(
-            "naturalScore"
-        ).textContent = "-";
-
-        document.getElementById(
-            "funScore"
-        ).textContent = "-";
-
-        document.getElementById(
-            "conversationScore"
-        ).textContent = "-";
-
-
-        chatBox.innerHTML = "";
+        analysisControls.style.display = "none";
 
 
         document.querySelector(".status").textContent =
@@ -554,20 +579,12 @@
             "⏳ AI가 실제 방송 같은 시청자 채팅을 만들고 있습니다.";
 
 
-        aiBusy = true;
+        chatBox.innerHTML = "";
 
 
         try {
 
-            const data = await callAI({
-                type: "viewer"
-            });
-
-
-            currentChat = data.result;
-
-
-            addViewerChat(currentChat);
+            await generateNextViewer();
 
 
             document.querySelector(".status").textContent =
@@ -575,13 +592,10 @@
 
 
             feedbackText.textContent =
-                "첫 번째 5개 채팅을 진행합니다.\n" +
-                "시청자의 채팅에 답변해보세요.";
+                "첫 번째 시청자의 채팅에 답변해보세요.";
 
 
             answerInput.focus();
-
-            answerButton.disabled = false;
 
 
         } catch (error) {
@@ -600,12 +614,11 @@
 
             trainingStarted = false;
 
-            startButton.disabled = false;
-
         }
 
 
-        aiBusy = false;
+        startButton.disabled = false;
+
     }
 
 
@@ -622,6 +635,7 @@
             );
 
             return;
+
         }
 
 
@@ -644,27 +658,32 @@
             );
 
             return;
+
         }
 
 
         const answerButton =
             document.getElementById("answerButton");
 
-
         const feedbackText =
             document.getElementById("feedbackText");
-
 
         const chatBox =
             document.getElementById("chatBox");
 
 
+        aiBusy = true;
+
+        answerButton.disabled = true;
+
+
         // ==========================================
-        // 내 답변 화면 표시
+        // 내 답변 화면에 표시
         // ==========================================
 
         const myChat =
             document.createElement("div");
+
 
         myChat.className = "chat";
 
@@ -692,20 +711,36 @@
         input.value = "";
 
 
-        answerButton.disabled = true;
-
-
         // ==========================================
-        // 현재 채팅 저장
+        // 현재 대화 저장
         // ==========================================
 
-        currentBatchConversations.push({
+        const conversation = {
 
             chat: currentChat,
 
             answer: answer
 
-        });
+        };
+
+
+        currentBatchConversations.push(
+            conversation
+        );
+
+
+        recentConversations.push(
+            conversation
+        );
+
+
+        // 최근 5개만 AI에게 기억시킴
+        if (recentConversations.length > 5) {
+
+            recentConversations =
+                recentConversations.slice(-5);
+
+        }
 
 
         totalRounds++;
@@ -713,35 +748,57 @@
         currentBatchRounds++;
 
 
+        feedbackText.textContent =
+            "⏳ 다음 시청자 채팅을 준비하고 있습니다.";
+
+
         document.querySelector(".status").textContent =
-            `● 방송 연습 중 (${currentBatchRounds}/${currentBatchTarget})`;
+            `● ${totalRounds}번째 대화 완료`;
 
 
         // ==========================================
-        // 아직 이번 분석 횟수에 도달하지 않았다면
-        // 다음 시청자 생성
+        // 현재 분석 구간이 끝났는지 확인
         // ==========================================
 
         if (
-            currentBatchRounds <
+            currentBatchRounds >=
             currentBatchTarget
         ) {
 
-            feedbackText.textContent =
-                `현재 ${currentBatchRounds}번째 채팅입니다.\n` +
-                `이번 분석까지 ${currentBatchTarget - currentBatchRounds}개 남았습니다.`;
+            await analyzeCurrentBatch();
 
-            await generateNextViewer();
+            aiBusy = false;
+
+            answerButton.disabled = false;
 
             return;
+
         }
 
 
         // ==========================================
-        // 분석 횟수 도달
+        // 아직 분석 구간이 남았으면
+        // 다음 시청자 생성
         // ==========================================
 
-        await analyzeCurrentBatch();
+        try {
+
+            await generateNextViewer();
+
+        } catch (error) {
+
+            console.error(error);
+
+            feedbackText.textContent =
+                "다음 시청자를 불러오지 못했습니다.\n\n" +
+                error.message;
+
+        }
+
+
+        aiBusy = false;
+
+        answerButton.disabled = false;
 
     }
 
@@ -752,33 +809,23 @@
 
     async function analyzeCurrentBatch() {
 
-        if (aiBusy) {
-            return;
-        }
-
-
-        aiBusy = true;
-
-
         const feedbackText =
             document.getElementById("feedbackText");
 
-        const answerButton =
-            document.getElementById("answerButton");
-
-        const controls =
+        const analysisControls =
             document.getElementById("analysisControls");
 
 
-        answerButton.disabled = true;
-
-
         document.querySelector(".status").textContent =
-            `● ${currentBatchStart}~${totalRounds}개 분석 중...`;
+            `● ${currentBatchStart}~${totalRounds} 분석 중...`;
 
 
         feedbackText.textContent =
-            `⏳ ${currentBatchStart}~${totalRounds}번째 채팅을 분석하고 있습니다.`;
+            `⏳ ${currentBatchStart}~${totalRounds}번째 대화를 분석하고 있습니다.`;
+
+
+        analysisControls.style.display =
+            "none";
 
 
         try {
@@ -813,7 +860,7 @@
             } catch (error) {
 
                 throw new Error(
-                    "AI가 올바른 피드백 형식을 반환하지 않았습니다."
+                    "AI가 올바른 분석 형식을 반환하지 않았습니다."
                 );
 
             }
@@ -851,78 +898,37 @@
             // 피드백 표시
             // ==========================================
 
-            let resultText = "";
+            let feedbackMessage =
 
-            resultText +=
-                `📊 ${currentBatchStart}~${totalRounds}번째 채팅 분석\n\n`;
+                `📊 ${currentBatchStart}~${totalRounds}번째 분석\n\n` +
 
+                `👍 잘한 점\n` +
+                `${feedback.strengths || "없음"}\n\n` +
 
-            resultText +=
-                `🟢 잘한 점\n` +
-                `${feedback.strengths || "없음"}\n\n`;
-
-
-            resultText +=
                 `🔧 개선할 점\n` +
-                `${feedback.improvements || "없음"}\n\n`;
+                `${feedback.improvements || "없음"}\n\n` +
 
+                `💡 더 좋은 답변 방향\n` +
+                `${feedback.betterAnswer || "없음"}\n\n` +
 
-            resultText +=
-                `💡 다음 연습에서 신경 쓸 점\n` +
-                `${feedback.betterAnswer || "없음"}\n\n`;
-
-
-            if (previousAnalysis) {
-
-                resultText +=
-                    `📈 이전 분석과 비교\n` +
-                    `${feedback.comparison || "비교 내용이 없습니다."}`;
-
-            } else {
-
-                resultText +=
-                    `📈 이전 분석과 비교\n` +
-                    `첫 분석이라 비교할 이전 결과가 없습니다.`;
-
-            }
+                `📈 이전 분석과 비교\n` +
+                `${feedback.comparison || "비교 내용이 없습니다."}`;
 
 
             feedbackText.textContent =
-                resultText;
+                feedbackMessage;
+
+
+            document.querySelector(".status").textContent =
+                `● ${currentBatchStart}~${totalRounds} 분석 완료`;
 
 
             // ==========================================
-            // 이번 분석 결과를
-            // 다음 분석의 기준으로 저장
+            // 현재 분석을 다음 분석의 기준으로 저장
             // ==========================================
 
-            previousAnalysis = {
-
-                communication:
-                    feedback.communication,
-
-                natural:
-                    feedback.natural,
-
-                fun:
-                    feedback.fun,
-
-                conversation:
-                    feedback.conversation,
-
-                strengths:
-                    feedback.strengths,
-
-                improvements:
-                    feedback.improvements,
-
-                betterAnswer:
-                    feedback.betterAnswer,
-
-                comparison:
-                    feedback.comparison
-
-            };
+            previousAnalysis =
+                feedback;
 
 
             // ==========================================
@@ -937,15 +943,12 @@
             currentBatchConversations = [];
 
 
-            document.querySelector(".status").textContent =
-                `● ${totalRounds}개 분석 완료`;
+            feedbackText.textContent +=
+                "\n\n다음 연습 구간을 선택하세요.";
 
 
-            // 선택 버튼 표시
-            controls.style.display = "block";
-
-
-            answerButton.disabled = true;
+            analysisControls.style.display =
+                "block";
 
 
         } catch (error) {
@@ -962,19 +965,19 @@
                 "● 분석 오류";
 
 
-            // 분석 실패 시
-            // 현재 배치 데이터를 유지
-            answerButton.disabled = true;
+            // 실패했을 때 현재 배치는 유지
+            // 다시 분석할 수 있도록 한다
+
+            analysisControls.style.display =
+                "none";
 
         }
 
-
-        aiBusy = false;
     }
 
 
     // ==========================================
-    // 다음 분석 횟수 선택
+    // 다음 배치 선택
     // ==========================================
 
     async function selectNextBatch(number) {
@@ -989,15 +992,10 @@
         }
 
 
-        currentBatchTarget =
-            number;
-
-        currentBatchRounds = 0;
-
-        currentBatchConversations = [];
+        aiBusy = true;
 
 
-        const controls =
+        const analysisControls =
             document.getElementById("analysisControls");
 
         const feedbackText =
@@ -1007,21 +1005,47 @@
             document.getElementById("answerButton");
 
 
-        controls.style.display = "none";
+        currentBatchTarget =
+            number;
+
+        currentBatchRounds = 0;
+
+        currentBatchConversations = [];
+
+
+        analysisControls.style.display =
+            "none";
+
 
         answerButton.disabled = true;
 
 
         document.querySelector(".status").textContent =
-            `● 다음 ${number}개 채팅 준비 중...`;
+            `● 다음 ${number}개 연습 준비 중...`;
 
 
         feedbackText.textContent =
-            `다음 ${number}개의 채팅을 진행합니다.\n` +
-            `현재 ${currentBatchStart}번째 채팅부터 시작합니다.`;
+            `${currentBatchStart}~${currentBatchStart + number - 1}번째 채팅을 시작합니다.`;
 
 
-        await generateNextViewer();
+        try {
+
+            await generateNextViewer();
+
+        } catch (error) {
+
+            console.error(error);
+
+            feedbackText.textContent =
+                "다음 연습을 시작하지 못했습니다.\n\n" +
+                error.message;
+
+        }
+
+
+        aiBusy = false;
+
+        answerButton.disabled = false;
 
     }
 
@@ -1037,36 +1061,51 @@
         }
 
 
-        if (aiBusy) {
-            return;
-        }
-
-
-        aiBusy = true;
-
-
         const feedbackText =
             document.getElementById("feedbackText");
 
-        const answerButton =
-            document.getElementById("answerButton");
-
-        const answerInput =
-            document.getElementById("answerInput");
-
-
-        answerButton.disabled = true;
-
 
         document.querySelector(".status").textContent =
-            `● ${currentBatchStart + currentBatchRounds}번째 시청자 준비 중...`;
+            "● 다음 시청자 준비 중...";
+
+
+        // ==========================================
+        // 시청자 성향 결정
+        // ==========================================
+
+        if (!currentViewerProfile) {
+
+            currentViewerProfile =
+                randomViewerProfile();
+
+        }
+
+
+        // 일정 확률로 새로운 시청자 성향
+        // 현재 대화 흐름이 너무 오래 이어지지 않도록 함
+
+        if (
+            Math.random() < 0.25 &&
+            totalRounds > 0
+        ) {
+
+            currentViewerProfile =
+                randomViewerProfile();
+
+        }
 
 
         try {
 
             const data = await callAI({
 
-                type: "viewer"
+                type: "viewer",
+
+                recentConversations:
+                    recentConversations,
+
+                viewerProfile:
+                    currentViewerProfile
 
             });
 
@@ -1075,21 +1114,50 @@
                 data.result;
 
 
-            addViewerChat(currentChat);
+            const chatBox =
+                document.getElementById("chatBox");
 
 
-            document.querySelector(".status").textContent =
-                `● 방송 연습 중 (${currentBatchRounds}/${currentBatchTarget})`;
+            const viewerChat =
+                document.createElement("div");
+
+
+            viewerChat.className =
+                "chat";
+
+
+            viewerChat.innerHTML = `
+
+                <div class="name">
+                    시청자_${randomViewerName()}
+                </div>
+
+                <div class="message">
+                    ${escapeHTML(currentChat)}
+                </div>
+
+            `;
+
+
+            chatBox.appendChild(viewerChat);
+
+
+            chatBox.scrollTop =
+                chatBox.scrollHeight;
 
 
             feedbackText.textContent =
-                `현재 ${currentBatchRounds} / ${currentBatchTarget}개 진행 중입니다.\n` +
-                `시청자의 채팅에 답변해보세요.`;
+                "새로운 시청자의 채팅입니다.\n" +
+                "자연스럽게 답변해보세요.";
 
 
-            answerButton.disabled = false;
+            document.querySelector(".status").textContent =
+                `● 방송 연습 중 (${currentBatchStart}~${currentBatchStart + currentBatchTarget - 1})`;
 
-            answerInput.focus();
+
+            document.getElementById(
+                "answerInput"
+            ).focus();
 
 
         } catch (error) {
@@ -1097,60 +1165,26 @@
             console.error(error);
 
 
-            feedbackText.textContent =
-                "다음 시청자를 불러오지 못했습니다.\n\n" +
-                error.message;
-
-
-            document.querySelector(".status").textContent =
-                "● 오류 발생";
-
-
-            answerButton.disabled = false;
+            throw error;
 
         }
 
-
-        aiBusy = false;
     }
 
 
     // ==========================================
-    // 시청자 채팅 추가
+    // 랜덤 시청자 성향
     // ==========================================
 
-    function addViewerChat(chat) {
+    function randomViewerProfile() {
 
-        const chatBox =
-            document.getElementById("chatBox");
+        return viewerProfiles[
+            Math.floor(
+                Math.random() *
+                viewerProfiles.length
+            )
+        ];
 
-
-        const viewerChat =
-            document.createElement("div");
-
-
-        viewerChat.className =
-            "chat";
-
-
-        viewerChat.innerHTML = `
-
-            <div class="name">
-                시청자_${randomViewerName()}
-            </div>
-
-            <div class="message">
-                ${escapeHTML(chat)}
-            </div>
-
-        `;
-
-
-        chatBox.appendChild(viewerChat);
-
-
-        chatBox.scrollTop =
-            chatBox.scrollHeight;
     }
 
 
@@ -1180,6 +1214,7 @@
                 names.length
             )
         ];
+
     }
 
 
@@ -1198,11 +1233,12 @@
 
 
         return div.innerHTML;
+
     }
 
 
     // ==========================================
-    // Enter로 답변하기
+    // Enter로 답변
     // Shift + Enter는 줄바꿈
     // ==========================================
 
