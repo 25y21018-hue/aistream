@@ -4,818 +4,303 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
-
-// ==========================================
-// POST
-// ==========================================
-
 export async function POST(request) {
-
     try {
-
         const body = await request.json();
+        const { type } = body;
 
-        const type = body.type;
-
-
-        // ==========================================
-        // AI 대화 생성
-        // ==========================================
-
+        // =========================
+        // AI 시청자 생성
+        // =========================
         if (type === "viewer") {
+            const recentConversations = Array.isArray(body.recentConversations)
+                ? body.recentConversations.slice(-5)
+                : [];
 
-            const recentConversations =
-                Array.isArray(body.recentConversations)
-                    ? body.recentConversations
-                    : [];
+            const viewerProfile = body.viewerProfile || {
+                type: "일반 시청자",
+                style: "자연스럽게 대화한다."
+            };
 
-
-            const viewerProfile =
-                body.viewerProfile || {
-                    type: "일반적인 대화 상대",
-                    style: "편안하고 자연스럽게 대화한다."
-                };
-
-
-            // 최근 최대 5개의 대화만 사용
-            const recentText =
-                recentConversations
-                    .slice(-5)
-                    .map((item, index) => {
-
-                        return `
-[대화 ${index + 1}]
-
-상대방:
-${item.chat}
-
-나:
-${item.answer}
-`;
-
-                    })
-                    .join("\n");
-
-
-            // 가장 최근 대화
             const latestConversation =
                 recentConversations.length > 0
-                    ? recentConversations[
-                        recentConversations.length - 1
-                    ]
+                    ? recentConversations[recentConversations.length - 1]
                     : null;
 
+            const recentText =
+                recentConversations.length > 0
+                    ? recentConversations
+                          .map(
+                              (item, index) =>
+                                  `${index + 1}. 시청자: ${item.chat}\n방송인: ${item.answer}`
+                          )
+                          .join("\n\n")
+                    : "아직 이전 대화가 없다.";
 
-            const latestChat =
-                latestConversation?.chat || "없음";
+            const latestChat = latestConversation?.chat || "";
+            const latestAnswer = latestConversation?.answer || "";
 
+            const prompt = `
+너는 인터넷 방송의 실제 시청자처럼 방송인과 자연스럽게 대화하는 AI다.
 
-            const latestAnswer =
-                latestConversation?.answer || "없음";
+중요한 목표는 "시청자 역할을 잘 연기하는 것"보다
+방송인과 실제로 대화하는 것처럼 자연스럽게 반응하는 것이다.
 
+[시청자 성격]
+유형: ${viewerProfile.type}
+성격: ${viewerProfile.style}
 
-            // ==========================================
-            // 대화 생성
-            // ==========================================
+[최근 대화]
+${recentText}
 
-            const completion =
-                await groq.chat.completions.create({
+[가장 최근 시청자 메시지]
+${latestChat}
 
-                    model: "openai/gpt-oss-20b",
-
-                    messages: [
-
-                        {
-                            role: "user",
-
-                            content: `
-
-너는 지금 한 사람과 자연스럽게 대화하고 있다.
-
-방송 시청자라는 설정은 대화를 자연스럽게 만들기 위한
-배경일 뿐이다.
-
-가장 중요한 목표는
-"실제로 사람과 대화하는 것처럼 자연스럽게 이어가는 것"이다.
-
-너는 상대방이 말하지 않은 정보를 알고 있지 않다.
-
---------------------------------
-대화 상대의 성격
---------------------------------
-
-유형:
-${viewerProfile.type}
-
-성향:
-${viewerProfile.style}
-
-이 성격은 대화의 말투와 반응에만 참고한다.
-
-성격을 과장하지 않는다.
-
---------------------------------
-최근 대화
---------------------------------
-
-${recentText || "아직 이전 대화가 없다."}
-
---------------------------------
-가장 최근 상대방의 말
---------------------------------
-
+[방송인의 가장 최근 답변]
 ${latestAnswer}
 
-이 말이 다음 대화를 결정할 때
-가장 중요한 정보다.
+다음 시청자 메시지를 작성해라.
 
---------------------------------
-대화 원칙
---------------------------------
+반드시 지켜야 할 규칙:
 
-1. 실제 대화에 나온 정보만 사용한다.
+1. 방송인의 가장 최근 답변을 가장 중요하게 본다.
 
-대화에 나오지 않은 사실을
-사실인 것처럼 말하지 않는다.
+2. 방송인의 답변에 자연스럽게 이어갈 수 있다면 이어간다.
+   하지만 억지로 이어갈 필요는 없다.
 
-예를 들어 상대방이
+3. 방송인이 갑자기 다른 이야기를 했다면
+   그 새로운 이야기를 자연스럽게 받아들인다.
+   이전 주제로 억지로 되돌리지 않는다.
 
-"그냥 게임 좀 했어"
+4. 단어 하나가 같다는 이유만으로 관련 없는 주제를 연결하지 않는다.
+   예를 들어 방송인이 "밥 먹었어?"라고 물었다면
+   단순히 "밥"이라는 단어가 이전 대화에 있었다는 이유로
+   이전 주제와 억지로 연결하지 않는다.
 
-라고만 말했다면,
+5. 대화에 실제로 나오지 않은 정보는 알고 있다고 가정하지 않는다.
+   게임 이름, 음식, 장소, 사람, 사건 등을 임의로 만들어내지 않는다.
 
-어떤 게임인지 알 수 없다.
+6. 모르는 내용이 필요하다면 자연스럽게 질문한다.
 
-따라서
+7. 매번 질문만 하지 않는다.
+   상황에 따라 짧은 반응, 의견, 농담, 공감, 질문 등을 섞는다.
 
-"롤 했구나"
+8. 너무 완벽하게 논리적인 답변을 만들지 않는다.
+   실제 채팅처럼 약간 가볍고 자연스럽게 말한다.
 
-처럼 특정 게임을 추측해서 말하면 안 된다.
+9. 같은 표현을 반복하지 않는다.
 
-대신
+10. "ㅋㅋ", "ㅎㅎ" 같은 표현을 습관적으로 붙이지 않는다.
+    필요하지 않으면 사용하지 않는다.
 
-"무슨 게임 했어?"
+11. 시청자 한 명이 계속 이야기하는 것처럼 자연스럽게 유지한다.
 
-처럼 물어볼 수 있다.
+12. 이전 대화 내용을 참고하되, 오래된 내용보다 최근 대화를 우선한다.
 
---------------------------------
+13. 방송인이 질문했으면 그 질문에 답하거나 자연스럽게 반응할 수 있다.
 
-2. 모르는 것은 추측하지 않는다.
+14. 방송인이 질문과 관계없는 새로운 말을 했다면
+    그것을 새로운 대화 주제로 받아들일 수 있다.
 
-상대방이 말하지 않은:
+15. 너무 긴 문장을 만들지 않는다.
+    실제 방송 채팅처럼 짧고 자연스럽게 작성한다.
 
-- 게임 이름
-- 장소
-- 사람
-- 음식
-- 시간
-- 경험
-- 과거 행동
-- 취향
-- 감정
-- 상황
+16. 이모티콘이나 과도한 특수문자를 남발하지 않는다.
 
-등을 임의로 만들어내지 않는다.
+17. 시청자 메시지만 출력한다.
+    설명, 분석, 따옴표, "시청자:" 같은 표시를 붙이지 않는다.
 
-대화에서 확인할 수 없는 정보라면
-모른다고 생각한다.
+18. 보통 1~2문장 정도로 작성한다.
 
---------------------------------
+가장 중요한 것은
+"이전 대화와 무조건 연결하는 것"이 아니라
+"방송인의 방금 답변을 보고 실제 사람이 자연스럽게 다음 말을 하는 것"이다.
+`;
 
-3. 대화에 필요한 정보가 없으면 질문한다.
-
-예:
-
-상대:
-"오늘 게임 좀 했어"
-
-좋은 반응:
-
-"무슨 게임 했어?"
-
-또는:
-
-"오늘은 뭐 했는데?"
-
-나쁜 반응:
-
-"롤 했구나"
-
-상대가 롤이라고 말한 적이 없기 때문이다.
-
---------------------------------
-
-4. 상대방의 최신 답변을 먼저 이해한다.
-
-이전 대화보다
-가장 최근 답변을 우선적으로 참고한다.
-
-상대방이 이전 주제를 계속 이야기했다면
-자연스럽게 이어갈 수 있다.
-
-상대방이 새로운 이야기를 시작했다면
-새로운 이야기로 이동한다.
-
---------------------------------
-
-5. 단어가 같다는 이유만으로
-서로 다른 내용을 연결하지 않는다.
-
-예:
-
-이전 대화:
-게임 이야기
-
-상대:
-"밥 뭐 먹었어?"
-
-이 경우 "밥"을 게임과 연결하지 않는다.
-
-상대가 새로운 주제를 꺼낸 것으로 이해한다.
-
-자연스러운 반응:
-
-"갑자기 밥 얘기네 ㅋㅋ"
-
-또는
-
-"아직 안 먹었는데 너는?"
-
-또는
-
-"오늘 뭐 먹었는데?"
-
---------------------------------
-
-6. 상대방의 말을 그대로 반복하지 않는다.
-
-나쁜 예:
-
-상대:
-"오늘 처음 해봤어"
-
-너:
-"오늘 처음 해봤구나"
-
-이런 식의 단순 반복은 피한다.
-
-대신 대화에 새로운 의미를 더한다.
-
-예:
-
-"처음인데 생각보다 괜찮았어?"
-
-단, 이것 역시 실제 대화에서 알 수 있는 범위를
-넘어서지 않도록 한다.
-
---------------------------------
-
-7. 모든 답변이 질문일 필요는 없다.
-
-실제 대화에서는
-
-- 짧은 반응
-- 공감
-- 농담
-- 의견
-- 질문
-- 새로운 이야기
-
-등이 섞인다.
-
-상황에 가장 자연스러운 방식을 선택한다.
-
---------------------------------
-
-8. 상대방이 갑자기 다른 이야기를 하면
-그 흐름을 받아들일 수 있다.
-
-예:
-
-상대:
-"오늘 게임 좀 했어"
-
-다음:
-
-"무슨 게임 했어?"
-
-상대:
-"아 근데 밥 뭐 먹었어?"
-
-다음:
-
-"ㅋㅋ 갑자기 밥이네"
-
-처럼 자연스럽게 주제를 바꿀 수 있다.
-
---------------------------------
-
-9. 상대방이 동문서답하면
-그것을 알아차릴 수도 있다.
-
-예:
-
-상대:
-"오늘 몇 시까지 방송해?"
-
-상대방:
-"나 아까 치킨 먹었어"
-
-가능한 반응:
-
-"ㅋㅋㅋㅋ 갑자기 치킨"
-
-또는
-
-"아니 몇 시까지 하냐고 ㅋㅋ"
-
-하지만 항상 동문서답을 지적하지 않는다.
-
-자연스럽게 다른 이야기를 받아줄 수도 있다.
-
---------------------------------
-
-10. 이전 대화를 참고하되
-없는 정보를 만들어내지 않는다.
-
-이전 대화에서 실제로 언급된 정보라면
-나중에 다시 사용할 수 있다.
-
-예:
-
-이전:
-"나는 매운 음식 좋아해"
-
-나중:
-
-"그럼 이거 매운 것도 좋아하겠네"
-
-이런 식의 연결은 가능하다.
-
-하지만 대화에 없었던 정보를
-기억하는 척하면 안 된다.
-
---------------------------------
-자연스러운 대화
---------------------------------
-
-실제 사람과 대화한다고 생각한다.
-
-너무 완벽하게 논리적일 필요는 없다.
-
-가끔 짧게 대답할 수도 있다.
-
-가끔 농담할 수도 있다.
-
-가끔 새로운 주제를 꺼낼 수도 있다.
-
-하지만 대화에 없는 정보를
-갑자기 만들어내지는 않는다.
-
-"사람처럼 자연스럽다"와
-"사실을 지어낸다"는 것은 다르다.
-
---------------------------------
-말투
---------------------------------
-
-한국어 인터넷 대화처럼 자연스럽게 작성한다.
-
-상황에 따라:
-
-ㅋㅋ
-ㅎㅎ
-ㄹㅇ
-아
-근데
-오
-와
-
-등을 사용할 수 있다.
-
-하지만 매번 사용하지 않는다.
-
-오타도 가끔 가능하지만
-일부러 계속 넣지는 않는다.
-
-문장을 지나치게 깔끔하게 만들 필요는 없다.
-
-AI가 작성한 설명문처럼 쓰지 않는다.
-
---------------------------------
-금지
---------------------------------
-
-- 존재하지 않는 정보 만들기
-- 상대방이 말하지 않은 것을 알고 있는 척하기
-- 특정 게임이나 음식 등을 임의로 추측하기
-- 이전 대화에 없던 사건을 만들어내기
-- 매번 질문으로 끝내기
-- 매번 상대방 말에 과하게 반응하기
-- 같은 표현 반복
-- 상대방의 말을 그대로 복사하기
-- 지나치게 긴 메시지
-- 여러 개의 메시지를 동시에 출력
-- 대화 상황 설명
-- AI라는 사실 언급
-- JSON 출력
-- 이름이나 번호 출력
-
---------------------------------
-출력
---------------------------------
-
-실제 대화에서 상대방에게 보낼
-메시지 하나만 작성한다.
-
-설명하지 않는다.
-
-따옴표를 사용하지 않는다.
-
-JSON을 사용하지 않는다.
-
-`
-
-                        }
-
-                    ],
-
-                    temperature: 0.85,
-
-                    reasoning_effort: "low",
-
-                    max_completion_tokens: 300
-
-                });
-
+            const completion = await groq.chat.completions.create({
+                model: "openai/gpt-oss-20b",
+                messages: [
+                    {
+                        role: "system",
+                        content: prompt
+                    }
+                ],
+                temperature: 0.85,
+                reasoning_effort: "low",
+                max_completion_tokens: 300
+            });
 
             const result =
-                completion
-                    .choices[0]
-                    ?.message
-                    ?.content
-                    ?.trim() || "";
-
-
-            if (!result) {
-
-                return Response.json(
-
-                    {
-                        error:
-                            "AI가 빈 대화를 반환했습니다."
-                    },
-
-                    {
-                        status: 502
-                    }
-
-                );
-
-            }
-
+                completion.choices?.[0]?.message?.content?.trim() || "";
 
             return Response.json({
                 result
             });
-
         }
 
-
-        // ==========================================
-        // 배치 피드백 분석
-        // ==========================================
-
+        // =========================
+        // 배치 피드백
+        // =========================
         if (type === "batchFeedback") {
+            const conversations = Array.isArray(body.conversations)
+                ? body.conversations
+                : [];
 
-            const conversations =
-                Array.isArray(body.conversations)
-                    ? body.conversations
-                    : [];
-
-
-            const previousAnalysis =
-                body.previousAnalysis || null;
-
-
-            const startRound =
-                body.startRound || 1;
-
-
-            const endRound =
-                body.endRound || startRound;
-
-
-            if (
-                conversations.length === 0
-            ) {
-
-                return Response.json(
-
-                    {
-                        error:
-                            "분석할 대화가 없습니다."
-                    },
-
-                    {
-                        status: 400
-                    }
-
-                );
-
-            }
-
-
-            // ==========================================
-            // 현재 분석 구간
-            // ==========================================
+            const previousAnalysis = body.previousAnalysis || null;
+            const startRound = body.startRound || 1;
+            const endRound = body.endRound || conversations.length;
 
             const conversationText =
-                conversations
-                    .map(
-                        (item, index) => {
+                conversations.length > 0
+                    ? conversations
+                          .map(
+                              (item, index) =>
+                                  `${startRound + index}번째 대화
+시청자: ${item.chat}
+방송인: ${item.answer}`
+                          )
+                          .join("\n\n")
+                    : "대화가 없습니다.";
 
-                            const round =
-                                startRound +
-                                index;
+            const previousText = previousAnalysis
+                ? `
+이전 배치 분석 결과:
+의사소통: ${previousAnalysis.communication}
+자연스러움: ${previousAnalysis.natural}
+재미: ${previousAnalysis.fun}
+대화 이어가기: ${previousAnalysis.conversation}
 
+강점:
+${previousAnalysis.strengths || ""}
 
-                            return `
-[${round}번째 대화]
+개선점:
+${previousAnalysis.improvements || ""}
+`
+                : "이전 배치 분석 결과가 없습니다.";
 
-상대방:
-${item.chat}
+            const prompt = `
+너는 방송 연습을 도와주는 AI 코치다.
 
-방송인:
-${item.answer}
-`;
+이번 분석 대상은 ${startRound}번째부터 ${endRound}번째까지의
+"이번 배치" 대화뿐이다.
 
-                        }
-                    )
-                    .join("\n");
+이전 배치가 있다면 이전 분석 결과를 참고해서
+이번 배치에서 어떻게 달라졌는지를 비교한다.
 
+중요:
+- 이전 대화를 다시 전부 분석하지 않는다.
+- 이번 배치의 대화만 점수와 평가의 직접적인 근거로 사용한다.
+- 이전 점수를 그대로 복사하지 않는다.
+- 실제 대화 내용을 근거로 평가한다.
+- 방송인의 답변이 자연스럽게 대화를 이어갔는지 본다.
+- 억지로 주제를 연결하거나 AI 시청자의 말을 오해한 경우도 평가한다.
+- 단순히 길게 답했다고 높은 평가를 주지 않는다.
+- 실제 방송에서 사용할 법한 대화인지 고려한다.
 
-            // ==========================================
-            // 이전 분석
-            // ==========================================
-
-            let previousText =
-                "이전 분석 결과가 없습니다. 첫 번째 분석입니다.";
-
-
-            if (previousAnalysis) {
-
-                previousText = `
-
-이전 분석 결과:
-
-${JSON.stringify(
-    previousAnalysis,
-    null,
-    2
-)}
-
-이전 분석 결과는
-이번 분석과 비교하기 위한 기준이다.
-
-이번 점수는 이전 점수를 그대로 복사하지 않는다.
-
-현재 분석 구간에서 실제로 어떤 변화가 있었는지
-판단한다.
-
-이전보다 좋아진 부분과
-아직 개선되지 않은 부분을 확인한다.
-
-`;
-
-            }
-
-
-            // ==========================================
-            // AI 분석
-            // ==========================================
-
-            const completion =
-                await groq.chat.completions.create({
-
-                    model: "openai/gpt-oss-20b",
-
-                    messages: [
-
-                        {
-
-                            role: "user",
-
-                            content: `
-
-너는 인터넷 방송인을 훈련시키는
-전문 방송 코치다.
-
-방송인이 AI와 대화한 내용을 보고
-방송 진행 능력을 분석한다.
-
-현재 분석 구간만 평가한다.
-
---------------------------------
-
-현재 분석 구간:
-
-${startRound}번째 ~ ${endRound}번째
-
---------------------------------
-
+[이번 배치 대화]
 ${conversationText}
 
---------------------------------
-
+[이전 분석]
 ${previousText}
 
---------------------------------
-
-평가 항목:
-
-1. communication
-
-상대방의 말을 이해하고
-적절하게 대답했는지 평가한다.
-
-2. natural
-
-답변이 실제 방송에서 말하는 것처럼
-자연스러웠는지 평가한다.
-
-3. fun
-
-답변이 재미있거나
-방송 분위기를 살렸는지 평가한다.
-
-4. conversation
-
-대화를 자연스럽게 이어가고
-상대방이 계속 이야기할 수 있도록 했는지 평가한다.
-
-각 점수는 반드시
-0~100 사이의 정수로 작성한다.
-
---------------------------------
-중요
---------------------------------
-
-이번 분석은 현재 구간만 평가한다.
-
-예:
-
-이전:
-1~5
-
-현재:
-6~15
-
-이라면
-
-6~15만 평가한다.
-
-1~5를 다시 평가하지 않는다.
-
-이전 분석은
-변화와 발전을 비교하기 위한 기준으로만 사용한다.
-
---------------------------------
-
-strengths:
-
-이번 구간에서 잘한 점
-
-improvements:
-
-이번 구간에서 개선할 점
-
-betterAnswer:
-
-다음 방송 연습에서 사용할 수 있는
-더 좋은 답변 방식이나 예시
-
-comparison:
-
-이전 분석과 비교했을 때
-발전한 부분과 아직 부족한 부분
-
-첫 분석이라면:
-
-"첫 분석이라 비교할 이전 결과가 없습니다."
-
---------------------------------
-
-반드시 JSON만 출력한다.
-
-형식:
+다음 JSON 형식으로만 출력한다.
 
 {
-    "communication": 0,
-    "natural": 0,
-    "fun": 0,
-    "conversation": 0,
-    "strengths": "잘한 점",
-    "improvements": "개선할 점",
-    "betterAnswer": "더 좋은 답변 방향",
-    "comparison": "이전 분석과 비교"
+  "communication": 0,
+  "natural": 0,
+  "fun": 0,
+  "conversation": 0,
+  "strengths": "",
+  "improvements": "",
+  "betterAnswer": "",
+  "comparison": ""
 }
 
-JSON 이외의 설명은 출력하지 않는다.
+점수 기준:
+- communication: 의사소통
+- natural: 자연스러움
+- fun: 재미와 반응
+- conversation: 대화 이어가기
 
-`
+각 점수는 0~100 사이의 정수다.
 
-                        }
+strengths:
+이번 배치에서 잘한 점을 구체적으로 작성한다.
 
-                    ],
+improvements:
+이번 배치에서 개선할 점을 구체적으로 작성한다.
 
-                    temperature: 0.4,
+betterAnswer:
+실제 대화 중 개선할 만한 답변 하나를 골라
+더 자연스러운 예시를 작성한다.
 
-                    reasoning_effort: "low",
+comparison:
+이전 배치가 있다면 이전 분석과 비교해서
+이번 배치에서 좋아진 점이나 달라진 점을 설명한다.
+이전 배치가 없다면 이번 배치의 현재 상태를 설명한다.
 
-                    max_completion_tokens: 1400,
+너무 길게 작성하지 않는다.
+`;
 
-                    response_format: {
-                        type: "json_object"
-                    }
-
-                });
-
-
-            const result =
-                completion
-                    .choices[0]
-                    ?.message
-                    ?.content || "";
-
-
-            if (!result) {
-
-                return Response.json(
-
+            const completion = await groq.chat.completions.create({
+                model: "openai/gpt-oss-20b",
+                messages: [
                     {
-                        error:
-                            "AI가 분석 결과를 반환하지 않았습니다."
-                    },
-
-                    {
-                        status: 502
+                        role: "user",
+                        content: prompt
                     }
+                ],
+                temperature: 0.4,
+                reasoning_effort: "low",
+                max_completion_tokens: 1400,
+                response_format: {
+                    type: "json_object"
+                }
+            });
 
-                );
+            const content =
+                completion.choices?.[0]?.message?.content?.trim() || "{}";
 
+            let result;
+
+            try {
+                result = JSON.parse(content);
+            } catch (error) {
+                result = {
+                    communication: 0,
+                    natural: 0,
+                    fun: 0,
+                    conversation: 0,
+                    strengths: "분석 결과를 불러오지 못했습니다.",
+                    improvements: "다시 시도해주세요.",
+                    betterAnswer: "",
+                    comparison: ""
+                };
             }
-
 
             return Response.json({
                 result
             });
-
         }
 
-
-        // ==========================================
-        // 잘못된 요청
-        // ==========================================
-
         return Response.json(
-
             {
-                error:
-                    "알 수 없는 요청입니다."
+                error: "알 수 없는 요청입니다."
             },
-
             {
                 status: 400
             }
-
         );
-
-
     } catch (error) {
-
-        console.error(
-            "Groq API Error:",
-            error
-        );
-
+        console.error(error);
 
         return Response.json(
-
             {
-                error:
-                    "Groq API 요청에 실패했습니다.",
-
-                detail:
-                    error.message
+                error: "AI 요청 처리 중 오류가 발생했습니다."
             },
-
             {
                 status: 500
             }
-
         );
-
     }
-
 }
